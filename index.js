@@ -1,8 +1,8 @@
 require('dotenv').config();
 const fs = require('fs');
 const axios = require('axios');
-const isReadFromLocaleFile = true;
-const isOldOwnerOrganization = false;
+const isReadFromLocaleFile = false;
+const oldOwnerType = 'user'; // user or org
 
 async function transfer({ repo }) {
     var data = JSON.stringify({
@@ -16,30 +16,40 @@ async function transfer({ repo }) {
             'Content-Type': 'application/json',
             'Authorization': `Basic ${Buffer.from(process.env.OLD_GITHUB_ACCOUNT_ID + ":" + process.env.GITHUB_PERSONAL_ACCESS_TOKEN).toString('base64')}`
         },
-        data: data
+        data
     };
     return axios(config);
 
 }
 
-async function getAllOrgRepos({ org }) {
+async function fetchAllRepos({ userType }) {
 
     let repos = [];
     let limit = 100;
     let shouldContinue = true;
     let page = 1;
 
+    let url;
+
     while (shouldContinue) {
-        console.log(`Getting data from page ${page}`);
+
+        if (userType === 'org') {
+            url = `https://api.github.com/orgs/${process.env.OLD_GITHUB_ACCOUNT_ID}/repos?per_page=${limit}&page=${page}`;
+        } else if (userType === 'user') {
+            url = `https://api.github.com/search/repositories?q=user:${process.env.OLD_GITHUB_ACCOUNT_ID}&per_page=${limit}&page=${page}`;
+        }
+
+        console.log(`Getting data from page ${page}, with url ${url}`);
         var config = {
             method: 'get',
-            url: `https://api.github.com/orgs/${org}/repos?per_page=${limit}&page=${page}`,
+            url,
             headers: {
                 'Authorization': `Basic ${Buffer.from(process.env.OLD_GITHUB_ACCOUNT_ID + ":" + process.env.GITHUB_PERSONAL_ACCESS_TOKEN).toString('base64')}`
             }
         };
         let response = await axios(config);
-        let list = response.data;
+
+        let list = userType == 'org' ? response.data : response.data.items;
         repos.push(...list.map(repo => repo.name));
         page++;
         if (list.length < limit) {
@@ -55,8 +65,8 @@ async function getAllOrgRepos({ org }) {
     let repos;
     if (isReadFromLocaleFile) {
         repos = fs.readFileSync('./repos.txt', 'utf8').split('\n');
-    } else if (isOldOwnerOrganization) {
-        repos = await getAllOrgRepos({ org: process.env.OLD_GITHUB_ACCOUNT_ID });
+    } else {
+        repos = await fetchAllRepos({ userType: oldOwnerType });
     }
 
     for (const [_, repo] of repos.entries()) {
