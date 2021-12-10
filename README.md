@@ -23,3 +23,5 @@ setInterval(() => {
 }, 1000);
 
 this script clicks the url from github emails and open the next email for you. 
+
+PR is welcome
